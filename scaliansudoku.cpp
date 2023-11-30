@@ -56,28 +56,166 @@ ScalianSudoku::ScalianSudoku(QWidget *parent)
 
 void ScalianSudoku::limpiarSudoku()
 {
+    for(uint filaId = 0; filaId < 9; filaId++)
+    {
+        for(uint colId = 0; colId < 9; colId++)
+        {
+            limpiarCelda(filaId, colId);
+        }
+    }
     qDebug() << "Borrar Sudoku";
 }
 
-void ScalianSudoku::resolverSudoku()
+bool ScalianSudoku::esSeguro(size_t fila, size_t col, uint valor)
 {
-    qDebug() << "Resolver Sudoku";
+    for (size_t i = 0; i < 9; i++)
+    {
+        auto celdaFila = obtenerCelda(fila, i).value();
+        auto celdaColumna = obtenerCelda(i, col).value();
+        if (celdaFila->text().toUInt() == valor || celdaColumna->text().toUInt() == valor)
+            return false;
+    }
+    size_t cuadranteInicioFila = fila - fila % 3;
+    size_t cuadranteInicioColumna = col - col % 3;
+    for (size_t i = 0; i < 3; i++)
+    {
+        for (size_t j = 0; j < 3; j++)
+        {
+            auto celdaSubcuadrante = obtenerCelda(i + cuadranteInicioFila, j + cuadranteInicioColumna).value();
+            if (celdaSubcuadrante->text().toUInt() == valor)
+                return false;
+        }
+    }
+    return true;
+}
+
+bool ScalianSudoku::resolverSudoku()
+{
+    for (size_t fila = 0; fila < 9; fila++)
+    {
+        for (size_t col = 0; col < 9; col++)
+        {
+            auto celdaValue = obtenerCelda(fila, col).value();
+            auto num = celdaValue->text().toUInt();
+            if (num == 0)
+            {
+                for (uint candidato = 1; candidato <= 9; candidato++)
+                {
+                    if (esSeguro(fila, col, candidato))
+                    {
+                        escribirCelda(candidato, fila, col, QColor(Qt::gray));
+                        if (resolverSudoku())
+                            return true;
+                        limpiarCelda(fila, col);
+                    }
+                }
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool ScalianSudoku::chequearColumna(uint fila, uint col, uint valor)
+{
+    for (uint colCompr = 0; colCompr < 9; ++colCompr)
+    {
+        if (colCompr != col)
+        {
+            auto celdaCompr = obtenerCelda(fila, colCompr);
+            if (celdaCompr.value()->text().toUInt() == valor)
+            {
+                escribirCelda(valor, fila, colCompr, QColor(Qt::GlobalColor::red));
+                escribirCelda(valor, fila, col, QColor(Qt::GlobalColor::red));
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool ScalianSudoku::chequearFila(uint fila, uint col, uint valor)
+{
+    for (uint filaCompr = 0; filaCompr < 9; ++filaCompr)
+    {
+        if (filaCompr != fila)
+        {
+            auto celdaCompr = obtenerCelda(filaCompr, col);
+            if (celdaCompr.has_value() && celdaCompr.value()->text().toUInt() == valor)
+            {
+                escribirCelda(valor, filaCompr, col, QColor(Qt::GlobalColor::red));
+                escribirCelda(valor, fila, col, QColor(Qt::GlobalColor::red));
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool ScalianSudoku::chequearCuadro(uint fila, uint col, uint valor)
+{
+    int cuadranteInicioFila = fila - fila % 3;
+    int cuadranteInicioColumna = col - col % 3;
+    for (uint i = 0; i < 3; i++)
+    {
+        for (uint j = 0; j < 3; j++)
+        {
+            uint filaCompr = i + cuadranteInicioFila;
+            uint colCompr = j + cuadranteInicioColumna;
+            if (obtenerCelda(filaCompr, colCompr).value()->text().toUInt() == valor && fila != filaCompr && colCompr != col)
+            {
+                escribirCelda(valor, filaCompr, colCompr, QColor(Qt::GlobalColor::red));
+                escribirCelda(valor, fila, col, QColor(Qt::GlobalColor::red));
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 bool ScalianSudoku::chequearSudoku()
 {
+    bool ctrl = true;
+    for (uint fila = 0; fila < 9; ++fila)
+    {
+          for (uint col = 0; col < 9; ++col)
+          {
+              auto celda = obtenerCelda(fila, col);
+              if (celda.has_value())
+              {
+                  uint valor = celda.value()->text().toUInt();
+                  if (valor != 0)
+                  {
+                      if (chequearColumna(fila, col, valor))
+                          if (chequearFila(fila, col, valor))
+                              if(chequearCuadro(fila, col, valor))
+                              {
+                                  escribirCelda(valor, fila, col, QColor(Qt::GlobalColor::black));
+                                  continue ;
+                              }
+                      ctrl = false;
+                  }
+              }
+          }
+    }
     qDebug() << "Chequear Sudoku";
-    return false;
+    return ctrl;
 }
 
 void ScalianSudoku::setearCelda(uint filaId, uint colId, uint valor)
 {
-    qDebug() << "Setear Celda ("<< filaId << "," << colId << "): " << valor;
+    if (escribirCelda(valor, filaId, colId, QColor(Qt::GlobalColor::gray)))
+        qDebug() << "Setear Celda (" << filaId << "," << colId << "): " << valor;
+    else
+        qDebug() << "Error: No se pudo obtener la celda en (" << filaId << "," << colId << ").";
 }
 
 void ScalianSudoku::borrarCelda(uint filaId, uint colId)
 {
-    qDebug() << "Borrar Celda ("<< filaId << "," << colId << ")";
+    if (limpiarCelda(filaId,colId))
+        qDebug() << "Borrar Celda ("<< filaId << "," << colId << ")";
+    else
+        qDebug() << "Error: No se pudo obtener la celda en (" << filaId << "," << colId << ").";
 }
 
 ScalianSudoku::~ScalianSudoku()
@@ -167,31 +305,46 @@ void ScalianSudoku::escribirResultado(const std::string &resultado, QColor color
 
 void ScalianSudoku::onLimpiarSudoku()
 {
-    for(uint filaId = 0; filaId < 9; filaId++)
-    {
-        for(uint colId = 0; colId < 9; colId++)
-        {
-            limpiarCelda(filaId, colId);
-        }
-    }
-
     escribirResultado("");
     limpiarSudoku();
 }
 
+int ScalianSudoku::contarElementos()
+{
+    int cont;
+
+    cont = 0;
+    for (int fila = 0; fila < 9; fila++)
+    {
+        for (int col = 0; col < 9; col++)
+        {
+            auto celda = obtenerCelda(fila, col);
+            int valor = celda.value()->text().toUInt();
+            if (valor != 0)
+                cont ++;
+        }
+    }
+    return cont;
+}
+
 void ScalianSudoku::onResolverSudoku()
 {
-    resolverSudoku();
-    bool resultado = chequearSudoku();
-
+    bool resultado;
+    if (contarElementos() < 17)
+    {
+        escribirResultado("Incorrecto", QColor(Qt::GlobalColor::yellow));
+        return;
+    }
+    resultado = chequearSudoku();
     if(resultado)
     {
-        escribirResultado("Correcto", QColor(Qt::GlobalColor::green));
+        if (resolverSudoku())
+            escribirResultado("Correcto", QColor(Qt::GlobalColor::green));
+        else
+            escribirResultado("Imposible", QColor(Qt::GlobalColor::red));
     }
     else
-    {
-        escribirResultado("Incorrecto", QColor(Qt::GlobalColor::red));
-    }
+        escribirResultado("Imposible", QColor(Qt::GlobalColor::red));
 }
 
 void ScalianSudoku::onAceptar()
